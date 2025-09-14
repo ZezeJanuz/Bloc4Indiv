@@ -1,0 +1,178 @@
+﻿<Window x:Class="Bloc4.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="Annuaire d'entreprise" Height="600" Width="960">
+
+    <!-- Raccourci clavier: Ctrl+Shift+A => panneau Admin -->
+    <Window.InputBindings>
+        <KeyBinding Gesture="Ctrl+Shift+A"
+                    Command="{Binding ShowAdminPanelCommand}"/>
+    </Window.InputBindings>
+
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <DockPanel Grid.Row="0" Margin="10">
+            <TextBlock Text="Annuaire d'entreprise" FontSize="22" FontWeight="Bold"/>
+            <Button Content="Admin" Margin="10,0,0,0" Command="{Binding ShowAdminPanelCommand}"/>
+        </DockPanel>
+
+        <!-- Corps -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="2*"/>
+                <ColumnDefinition Width="3*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Panneau Recherche -->
+            <GroupBox Header="Recherche" Margin="10" Grid.Column="0">
+                <StackPanel Margin="10">
+                    <TextBlock Text="Nom ou prénom" Margin="0,0,0,4"/>
+                    <TextBox Margin="0,0,0,10"
+                             Text="{Binding Search.NomQuery, UpdateSourceTrigger=PropertyChanged}"/>
+
+                    <TextBlock Text="Site" Margin="0,4,0,4"/>
+                    <ComboBox Margin="0,0,0,10"
+                              ItemsSource="{Binding Search.Sites}"
+                              SelectedItem="{Binding Search.SelectedSite}"
+                              DisplayMemberPath="Ville"/>
+
+                    <TextBlock Text="Service" Margin="0,4,0,4"/>
+                    <ComboBox Margin="0,0,0,10"
+                              ItemsSource="{Binding Search.Services}"
+                              SelectedItem="{Binding Search.SelectedService}"
+                              DisplayMemberPath="Nom"/>
+
+                    <Button Content="Rafraîchir les listes"
+                            Command="{Binding Search.RefreshListsCommand}"/>
+                </StackPanel>
+            </GroupBox>
+
+            <!-- Résultats -->
+            <GroupBox Header="Résultats" Margin="10" Grid.Column="1">
+                <DataGrid ItemsSource="{Binding Search.Results}" AutoGenerateColumns="False" IsReadOnly="True">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Prénom"   Binding="{Binding Prenom}"/>
+                        <DataGridTextColumn Header="Nom"      Binding="{Binding Nom}"/>
+                        <DataGridTextColumn Header="Email"    Binding="{Binding Email}"/>
+                        <DataGridTextColumn Header="Fixe"     Binding="{Binding TelephoneFixe}"/>
+                        <DataGridTextColumn Header="Portable" Binding="{Binding TelephonePortable}"/>
+                        <DataGridTextColumn Header="Service"  Binding="{Binding Service.Nom}"/>
+                        <DataGridTextColumn Header="Site"     Binding="{Binding Site.Ville}"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </GroupBox>
+        </Grid>
+
+        <!-- Overlay Admin -->
+        <Border Background="#AA000000"
+                Visibility="{Binding IsAdminPanelVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <!-- Conteneur blanc centré qui supporte Padding -->
+            <Border HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Width="760" Height="520" Background="White" Padding="16">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Zone login si non autorisé -->
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10"
+                                Visibility="{Binding Admin.IsAuthorized, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
+                        <PasswordBox x:Name="Pwd" Width="220"/>
+                        <Button Content="Valider" Margin="10,0,0,0"
+                                Command="{Binding AuthenticateAdminCommand}"
+                                CommandParameter="{Binding ElementName=Pwd}"/>
+
+                        <Button Content="Fermer" Margin="10,0,0,0"
+                                Command="{Binding HideAdminPanelCommand}"/>
+                    </StackPanel>
+
+                    <!-- Grilles Admin si autorisé -->
+                    <Grid Grid.Row="1"
+                          Visibility="{Binding Admin.IsAuthorized, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition/>
+                            <ColumnDefinition/>
+                            <ColumnDefinition/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Sites -->
+                        <GroupBox Header="Sites" Margin="5" Grid.Column="0">
+                            <DockPanel>
+                                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,5">
+                                    <Button Content="+"    Command="{Binding Admin.AddSiteCommand}"/>
+                                    <Button Content="💾" Margin="5,0,0,0" Command="{Binding Admin.UpdateSiteCommand}"/>
+                                    <Button Content="🗑" Margin="5,0,0,0" Command="{Binding Admin.DeleteSiteCommand}"/>
+                                </StackPanel>
+                                <DataGrid ItemsSource="{Binding Admin.Sites}"
+                                          SelectedItem="{Binding Admin.SelectedSite}"
+                                          AutoGenerateColumns="False">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Ville" Binding="{Binding Ville, UpdateSourceTrigger=PropertyChanged}"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </DockPanel>
+                        </GroupBox>
+
+                        <!-- Services -->
+                        <GroupBox Header="Services" Margin="5" Grid.Column="1">
+                            <DockPanel>
+                                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,5">
+                                    <Button Content="+"    Command="{Binding Admin.AddServiceCommand}"/>
+                                    <Button Content="💾" Margin="5,0,0,0" Command="{Binding Admin.UpdateServiceCommand}"/>
+                                    <Button Content="🗑" Margin="5,0,0,0" Command="{Binding Admin.DeleteServiceCommand}"/>
+                                </StackPanel>
+                                <DataGrid ItemsSource="{Binding Admin.Services}"
+                                          SelectedItem="{Binding Admin.SelectedService}"
+                                          AutoGenerateColumns="False">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Nom" Binding="{Binding Nom, UpdateSourceTrigger=PropertyChanged}"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </DockPanel>
+                        </GroupBox>
+
+                        <!-- Salariés -->
+                        <GroupBox Header="Salariés" Margin="5" Grid.Column="2">
+                            <DockPanel>
+                                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,5">
+                                    <Button Content="+"    Command="{Binding Admin.AddSalarieCommand}"/>
+                                    <Button Content="💾" Margin="5,0,0,0" Command="{Binding Admin.UpdateSalarieCommand}"/>
+                                    <Button Content="🗑" Margin="5,0,0,0" Command="{Binding Admin.DeleteSalarieCommand}"/>
+                                    <Button Content="PDF" Margin="5,0,0,0" Command="{Binding Admin.ExportPdfCommand}"/>
+                                </StackPanel>
+                                <DataGrid ItemsSource="{Binding Admin.Salaries}"
+                                          SelectedItem="{Binding Admin.SelectedSalarie}"
+                                          AutoGenerateColumns="False">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Prénom"  Binding="{Binding Prenom, UpdateSourceTrigger=PropertyChanged}"/>
+                                        <DataGridTextColumn Header="Nom"     Binding="{Binding Nom, UpdateSourceTrigger=PropertyChanged}"/>
+                                        <DataGridTextColumn Header="Email"   Binding="{Binding Email, UpdateSourceTrigger=PropertyChanged}"/>
+                                        <DataGridTextColumn Header="Fixe"    Binding="{Binding TelephoneFixe, UpdateSourceTrigger=PropertyChanged}"/>
+                                        <DataGridTextColumn Header="Portable" Binding="{Binding TelephonePortable, UpdateSourceTrigger=PropertyChanged}"/>
+                                        <DataGridTextColumn Header="ServiceId" Binding="{Binding ServiceId, UpdateSourceTrigger=PropertyChanged}"/>
+                                        <DataGridTextColumn Header="SiteId"    Binding="{Binding SiteId, UpdateSourceTrigger=PropertyChanged}"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </DockPanel>
+                        </GroupBox>
+                    </Grid>
+
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Content="Fermer" Command="{Binding HideAdminPanelCommand}"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Border>
+    </Grid>
+</Window>
