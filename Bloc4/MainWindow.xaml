@@ -3,15 +3,15 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:infra="clr-namespace:Bloc4.Infrastructure"
         mc:Ignorable="d"
         Title="Annuaire d'entreprise" Height="600" Width="960">
 
-    <!-- Raccourci clavier: Ctrl+Shift+A => panneau Admin -->
+    <!-- Raccourcis clavier -->
     <Window.InputBindings>
-        <KeyBinding Gesture="Ctrl+Shift+A"
-                    Command="{Binding ShowAdminPanelCommand}"/>
+        <KeyBinding Gesture="Ctrl+Shift+A" Command="{Binding ShowAdminPanelCommand}"/>
+        <KeyBinding Gesture="Esc"           Command="{Binding HideAdminPanelCommand}"/>
     </Window.InputBindings>
-
 
     <Grid>
         <Grid.RowDefinitions>
@@ -19,10 +19,11 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- Header -->
-        <DockPanel Grid.Row="0" Margin="10">
-            <TextBlock Text="Annuaire d'entreprise" FontSize="22" FontWeight="Bold"/>
-            <Button Content="Admin" Margin="10,0,0,0" Command="{Binding ShowAdminPanelCommand}"/>
+        <!-- Header (pas de bouton Admin) -->
+        <DockPanel Grid.Row="0" Margin="16">
+            <TextBlock Text="Annuaire d'entreprise"
+                       FontSize="{StaticResource TitleFontSize}"
+                       FontWeight="Bold"/>
         </DockPanel>
 
         <!-- Corps -->
@@ -58,26 +59,58 @@
 
             <!-- Résultats -->
             <GroupBox Header="Résultats" Margin="10" Grid.Column="1">
-                <DataGrid ItemsSource="{Binding Search.Results}" AutoGenerateColumns="False" IsReadOnly="True">
-                    <DataGrid.Columns>
-                        <DataGridTextColumn Header="Prénom"   Binding="{Binding Prenom}"/>
-                        <DataGridTextColumn Header="Nom"      Binding="{Binding Nom}"/>
-                        <DataGridTextColumn Header="Email"    Binding="{Binding Email}"/>
-                        <DataGridTextColumn Header="Fixe"     Binding="{Binding TelephoneFixe}"/>
-                        <DataGridTextColumn Header="Portable" Binding="{Binding TelephonePortable}"/>
-                        <DataGridTextColumn Header="Service"  Binding="{Binding Service.Nom}"/>
-                        <DataGridTextColumn Header="Site"     Binding="{Binding Site.Ville}"/>
-                    </DataGrid.Columns>
-                </DataGrid>
+                <DockPanel>
+                    <!-- Toolbar -->
+                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Top" Margin="0,0,0,8">
+                        <Button Content="Exporter la fiche PDF"
+                                Command="{Binding Search.ExportSelectedPdfCommand}"/>
+                    </StackPanel>
+
+                    <DataGrid ItemsSource="{Binding Search.Results}"
+                              SelectedItem="{Binding Search.SelectedSalarie}"
+                              AutoGenerateColumns="False" IsReadOnly="True">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Prénom"   Binding="{Binding Prenom}"/>
+                            <DataGridTextColumn Header="Nom"      Binding="{Binding Nom}"/>
+                            <DataGridTextColumn Header="Email"    Binding="{Binding Email}"/>
+                            <DataGridTextColumn Header="Fixe"     Binding="{Binding TelephoneFixe}"/>
+                            <DataGridTextColumn Header="Portable" Binding="{Binding TelephonePortable}"/>
+                            <DataGridTextColumn Header="Service"  Binding="{Binding Service.Nom}"/>
+                            <DataGridTextColumn Header="Site"     Binding="{Binding Site.Ville}"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
             </GroupBox>
         </Grid>
 
-        <!-- Overlay Admin -->
+        <!-- Overlay Admin (ouvert uniquement par Ctrl+Shift+A) -->
         <Border Background="#AA000000"
                 Visibility="{Binding IsAdminPanelVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
-            <!-- Conteneur blanc centré qui supporte Padding -->
+            <!-- Conteneur blanc centré -->
             <Border HorizontalAlignment="Center" VerticalAlignment="Center"
-                    Width="760" Height="520" Background="White" Padding="16">
+                    Width="900" Height="600" Background="White" Padding="16">
+
+                <!-- Styles compacts scoppés à l'overlay admin -->
+                <Border.Resources>
+                    <!-- Par défaut, tous les boutons de l’overlay deviennent compacts -->
+                    <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                        <Setter Property="FontSize" Value="{StaticResource SmallFontSize}"/>
+                        <Setter Property="MinHeight" Value="32"/>
+                        <Setter Property="MinWidth"  Value="84"/>
+                        <Setter Property="Padding"   Value="10,6"/>
+                        <Setter Property="Margin"    Value="0,0,6,0"/>
+                    </Style>
+
+                    <!-- Boutons d’outils (+, 💾, 🗑, PDF) encore plus compacts -->
+                    <Style x:Key="IconButton" TargetType="Button" BasedOn="{StaticResource OutlineButton}">
+                        <Setter Property="FontSize"  Value="14"/>
+                        <Setter Property="MinHeight" Value="28"/>
+                        <Setter Property="MinWidth"  Value="32"/>
+                        <Setter Property="Padding"   Value="8,4"/>
+                        <Setter Property="Margin"    Value="0,0,6,0"/>
+                    </Style>
+                </Border.Resources>
+
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -88,12 +121,12 @@
                     <!-- Zone login si non autorisé -->
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,10"
                                 Visibility="{Binding Admin.IsAuthorized, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
-                        <PasswordBox x:Name="Pwd" Width="220"/>
-                        <Button Content="Valider" Margin="10,0,0,0"
-                                Command="{Binding AuthenticateAdminCommand}"
-                                CommandParameter="{Binding ElementName=Pwd}"/>
-
-                        <Button Content="Fermer" Margin="10,0,0,0"
+                        <PasswordBox Width="220"
+                                     infra:PasswordBoxBinder.BindPassword="True"
+                                     infra:PasswordBoxBinder.BoundPassword="{Binding AdminPassword, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                        <Button Content="Valider" Margin="10,0,0,0" IsDefault="True"
+                                Command="{Binding AuthenticateAdminCommand}"/>
+                        <Button Content="Fermer"  Margin="10,0,0,0"
                                 Command="{Binding HideAdminPanelCommand}"/>
                     </StackPanel>
 
@@ -105,14 +138,18 @@
                             <ColumnDefinition/>
                             <ColumnDefinition/>
                         </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
 
                         <!-- Sites -->
-                        <GroupBox Header="Sites" Margin="5" Grid.Column="0">
+                        <GroupBox Header="Sites" Margin="5" Grid.Column="0" Grid.Row="0">
                             <DockPanel>
                                 <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,5">
-                                    <Button Content="+"    Command="{Binding Admin.AddSiteCommand}"/>
-                                    <Button Content="💾" Margin="5,0,0,0" Command="{Binding Admin.UpdateSiteCommand}"/>
-                                    <Button Content="🗑" Margin="5,0,0,0" Command="{Binding Admin.DeleteSiteCommand}"/>
+                                    <Button Content="+"  Style="{StaticResource IconButton}" Command="{Binding Admin.AddSiteCommand}"/>
+                                    <Button Content="💾" Style="{StaticResource IconButton}" Command="{Binding Admin.UpdateSiteCommand}"/>
+                                    <Button Content="🗑" Style="{StaticResource IconButton}" Command="{Binding Admin.DeleteSiteCommand}"/>
                                 </StackPanel>
                                 <DataGrid ItemsSource="{Binding Admin.Sites}"
                                           SelectedItem="{Binding Admin.SelectedSite}"
@@ -125,12 +162,12 @@
                         </GroupBox>
 
                         <!-- Services -->
-                        <GroupBox Header="Services" Margin="5" Grid.Column="1">
+                        <GroupBox Header="Services" Margin="5" Grid.Column="1" Grid.Row="0">
                             <DockPanel>
                                 <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,5">
-                                    <Button Content="+"    Command="{Binding Admin.AddServiceCommand}"/>
-                                    <Button Content="💾" Margin="5,0,0,0" Command="{Binding Admin.UpdateServiceCommand}"/>
-                                    <Button Content="🗑" Margin="5,0,0,0" Command="{Binding Admin.DeleteServiceCommand}"/>
+                                    <Button Content="+"  Style="{StaticResource IconButton}" Command="{Binding Admin.AddServiceCommand}"/>
+                                    <Button Content="💾" Style="{StaticResource IconButton}" Command="{Binding Admin.UpdateServiceCommand}"/>
+                                    <Button Content="🗑" Style="{StaticResource IconButton}" Command="{Binding Admin.DeleteServiceCommand}"/>
                                 </StackPanel>
                                 <DataGrid ItemsSource="{Binding Admin.Services}"
                                           SelectedItem="{Binding Admin.SelectedService}"
@@ -143,29 +180,76 @@
                         </GroupBox>
 
                         <!-- Salariés -->
-                        <GroupBox Header="Salariés" Margin="5" Grid.Column="2">
+                        <GroupBox Header="Salariés" Margin="5" Grid.Column="2" Grid.Row="0">
                             <DockPanel>
                                 <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,5">
-                                    <Button Content="+"    Command="{Binding Admin.AddSalarieCommand}"/>
-                                    <Button Content="💾" Margin="5,0,0,0" Command="{Binding Admin.UpdateSalarieCommand}"/>
-                                    <Button Content="🗑" Margin="5,0,0,0" Command="{Binding Admin.DeleteSalarieCommand}"/>
-                                    <Button Content="PDF" Margin="5,0,0,0" Command="{Binding Admin.ExportPdfCommand}"/>
+                                    <Button Content="+"   Style="{StaticResource IconButton}" Command="{Binding Admin.AddSalarieCommand}"/>
+                                    <Button Content="💾"  Style="{StaticResource IconButton}" Command="{Binding Admin.UpdateSalarieCommand}"/>
+                                    <Button Content="🗑"  Style="{StaticResource IconButton}" Command="{Binding Admin.DeleteSalarieCommand}"/>
+                                    <Button Content="PDF" Style="{StaticResource IconButton}" Command="{Binding Admin.ExportPdfCommand}"/>
                                 </StackPanel>
                                 <DataGrid ItemsSource="{Binding Admin.Salaries}"
                                           SelectedItem="{Binding Admin.SelectedSalarie}"
                                           AutoGenerateColumns="False">
                                     <DataGrid.Columns>
-                                        <DataGridTextColumn Header="Prénom"  Binding="{Binding Prenom, UpdateSourceTrigger=PropertyChanged}"/>
-                                        <DataGridTextColumn Header="Nom"     Binding="{Binding Nom, UpdateSourceTrigger=PropertyChanged}"/>
-                                        <DataGridTextColumn Header="Email"   Binding="{Binding Email, UpdateSourceTrigger=PropertyChanged}"/>
-                                        <DataGridTextColumn Header="Fixe"    Binding="{Binding TelephoneFixe, UpdateSourceTrigger=PropertyChanged}"/>
+                                        <DataGridTextColumn Header="Prénom"   Binding="{Binding Prenom, UpdateSourceTrigger=PropertyChanged}"/>
+                                        <DataGridTextColumn Header="Nom"      Binding="{Binding Nom, UpdateSourceTrigger=PropertyChanged}"/>
+                                        <DataGridTextColumn Header="Email"    Binding="{Binding Email, UpdateSourceTrigger=PropertyChanged}"/>
+                                        <DataGridTextColumn Header="Fixe"     Binding="{Binding TelephoneFixe, UpdateSourceTrigger=PropertyChanged}"/>
                                         <DataGridTextColumn Header="Portable" Binding="{Binding TelephonePortable, UpdateSourceTrigger=PropertyChanged}"/>
-                                        <DataGridTextColumn Header="ServiceId" Binding="{Binding ServiceId, UpdateSourceTrigger=PropertyChanged}"/>
-                                        <DataGridTextColumn Header="SiteId"    Binding="{Binding SiteId, UpdateSourceTrigger=PropertyChanged}"/>
+
+                                        <!-- ComboBox pour Service -->
+                                        <DataGridComboBoxColumn Header="Service"
+                                            SelectedValueBinding="{Binding ServiceId, UpdateSourceTrigger=PropertyChanged}"
+                                            SelectedValuePath="Id"
+                                            DisplayMemberPath="Nom"
+                                            ItemsSource="{Binding DataContext.Admin.Services, RelativeSource={RelativeSource AncestorType=Window}}"/>
+
+                                        <!-- ComboBox pour Site -->
+                                        <DataGridComboBoxColumn Header="Site"
+                                            SelectedValueBinding="{Binding SiteId, UpdateSourceTrigger=PropertyChanged}"
+                                            SelectedValuePath="Id"
+                                            DisplayMemberPath="Ville"
+                                            ItemsSource="{Binding DataContext.Admin.Sites, RelativeSource={RelativeSource AncestorType=Window}}"/>
                                     </DataGrid.Columns>
                                 </DataGrid>
                             </DockPanel>
                         </GroupBox>
+
+                        <!-- ===== Connexions admin en menu déroulant (Expander) ===== -->
+                        <Expander Header="Connexions admin"
+                                  Grid.Row="1" Grid.ColumnSpan="3"
+                                  Margin="5"
+                                  IsExpanded="False">
+                            <Border Margin="0,6,0,0">
+                                <DockPanel>
+                                    <!-- Toolbar -->
+                                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Top" Margin="0,0,0,8">
+                                        <TextBlock Text="Du" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                        <DatePicker SelectedDate="{Binding Audit.DateFrom, Mode=TwoWay}" Width="140" Margin="0,0,10,0"/>
+                                        <TextBlock Text="au" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                        <DatePicker SelectedDate="{Binding Audit.DateTo, Mode=TwoWay}" Width="140" Margin="0,0,10,0"/>
+                                        <Button Content="Actualiser" Command="{Binding Audit.RefreshCommand}"/>
+                                        <Button Content="Exporter CSV" Command="{Binding Audit.ExportCsvCommand}" Margin="8,0,0,0"/>
+                                    </StackPanel>
+
+                                    <!-- Liste (hauteur limitée) -->
+                                    <DataGrid ItemsSource="{Binding Audit.Logs}"
+                                              AutoGenerateColumns="False"
+                                              IsReadOnly="True"
+                                              MaxHeight="260">
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="Date (locale)" Binding="{Binding AttemptedAt, StringFormat=\{0:dd/MM/yyyy HH:mm:ss\}}"/>
+                                            <DataGridTextColumn Header="Succès"        Binding="{Binding Success}"/>
+                                            <DataGridTextColumn Header="Utilisateur"    Binding="{Binding UserName}"/>
+                                            <DataGridTextColumn Header="Machine"       Binding="{Binding MachineName}"/>
+                                            <DataGridTextColumn Header="Raison"        Binding="{Binding Reason}"/>
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                </DockPanel>
+                            </Border>
+                        </Expander>
+                        <!-- ======================================================= -->
                     </Grid>
 
                     <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">

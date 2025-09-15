@@ -11,11 +11,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Bloc4.Services
 {
-    public interface IRandomUserService
-    {
-        Task<int> ImportRandomUsersAsync(int count = 10, string nat = "fr");
-    }
-
     public class RandomUserService : IRandomUserService
     {
         private readonly AppDbContext _db;
@@ -63,7 +58,7 @@ namespace Bloc4.Services
             return await _db.SaveChangesAsync();
         }
 
-        private static string Capitalize(string s) 
+        private static string Capitalize(string s)
             => string.IsNullOrWhiteSpace(s) ? s : char.ToUpperInvariant(s[0]) + s[1..].ToLowerInvariant();
 
         public class RandomUserResponse { [JsonPropertyName("results")] public List<RandomUserItem>? Results { get; set; } }

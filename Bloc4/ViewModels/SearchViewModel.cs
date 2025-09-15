@@ -1,4 +1,7 @@
-﻿using System.Collections.ObjectModel;
+﻿using System;
+using System.Collections.ObjectModel;
+using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using Bloc4.Data.Models;
@@ -10,19 +13,25 @@ namespace Bloc4.ViewModels
     public class SearchViewModel : ObservableObject
     {
         private readonly IDataService _data;
+        private readonly IPdfService _pdf;
+        private readonly ILoggingService _log;
 
         public ObservableCollection<Site> Sites { get; } = new();
         public ObservableCollection<Service> Services { get; } = new();
         public ObservableCollection<Salarie> Results { get; } = new();
 
-        private string? _nomQuery;
-        public string? NomQuery
+        // Sentinelles "Tout" (Id=0 pour signifier "pas de filtre")
+        private static readonly Site AllSite = new Site { Id = 0, Ville = "Tout" };
+        private static readonly Service AllService = new Service { Id = 0, Nom = "Tout" };
+
+        private Salarie? _selectedSalarie;
+        public Salarie? SelectedSalarie
         {
-            get => _nomQuery;
+            get => _selectedSalarie;
             set
             {
-                if (SetProperty(ref _nomQuery, value))
-                    _ = SearchAsync();
+                if (SetProperty(ref _selectedSalarie, value))
+                    CommandManager.InvalidateRequerySuggested();
             }
         }
 
@@ -33,7 +42,7 @@ namespace Bloc4.ViewModels
             set
             {
                 if (SetProperty(ref _selectedSite, value))
-                    _ = SearchAsync();
+                    _ = DebouncedSearchAsync();
             }
         }
 
@@ -44,34 +53,130 @@ namespace Bloc4.ViewModels
             set
             {
                 if (SetProperty(ref _selectedService, value))
-                    _ = SearchAsync();
+                    _ = DebouncedSearchAsync();
             }
         }
 
-        public ICommand RefreshListsCommand { get; }
+        private string _nomQuery = string.Empty;
+        public string NomQuery
+        {
+            get => _nomQuery;
+            set
+            {
+                if (SetProperty(ref _nomQuery, value ?? string.Empty))
+                    _ = DebouncedSearchAsync();
+            }
+        }
 
-        public SearchViewModel(IDataService data)
+        private bool _isBusy;
+        public bool IsBusy
+        {
+            get => _isBusy;
+            set => SetProperty(ref _isBusy, value);
+        }
+
+        public ICommand RefreshListsCommand { get; }
+        public ICommand ExportSelectedPdfCommand { get; }
+
+        private CancellationTokenSource? _cts;
+
+        public SearchViewModel(IDataService data, IPdfService pdf, ILoggingService log)
         {
             _data = data;
+            _pdf  = pdf;
+            _log  = log;
+
             RefreshListsCommand = new RelayCommand(async _ => await LoadListsAsync());
+            ExportSelectedPdfCommand = new RelayCommand(
+                async _ => await ExportSelectedAsync(),
+                _ => SelectedSalarie != null
+            );
         }
 
+        /// <summary>
+        /// Charge Sites/Services, insère "Tout" en tête, sélectionne "Tout" par défaut, puis lance la recherche.
+        /// </summary>
         public async Task LoadListsAsync()
         {
-            Sites.Clear();
-            foreach (var s in await _data.GetSitesAsync()) Sites.Add(s);
+            try
+            {
+                IsBusy = true;
 
-            Services.Clear();
-            foreach (var s in await _data.GetServicesAsync()) Services.Add(s);
+                // Sites
+                Sites.Clear();
+                Sites.Add(AllSite); // "Tout"
+                var sites = await _data.GetSitesAsync();
+                foreach (var s in sites.OrderBy(x => x.Ville))
+                    Sites.Add(s);
 
-            await SearchAsync();
+                // Services
+                Services.Clear();
+                Services.Add(AllService); // "Tout"
+                var services = await _data.GetServicesAsync();
+                foreach (var s in services.OrderBy(x => x.Nom))
+                    Services.Add(s);
+
+                // Par défaut : "Tout" sélectionné
+                SelectedSite ??= AllSite;
+                SelectedService ??= AllService;
+
+                await SearchAsync();
+            }
+            finally { IsBusy = false; }
         }
 
-        public async Task SearchAsync()
+        private async Task DebouncedSearchAsync(int delayMs = 250)
         {
-            Results.Clear();
-            var list = await _data.SearchSalariesAsync(NomQuery, SelectedSite?.Id, SelectedService?.Id);
-            foreach (var s in list) Results.Add(s);
+            _cts?.Cancel();
+            _cts = new CancellationTokenSource();
+            var token = _cts.Token;
+
+            try
+            {
+                await Task.Delay(delayMs, token);
+                await SearchAsync();
+            }
+            catch (TaskCanceledException) { /* normal */ }
+        }
+
+        private async Task SearchAsync()
+        {
+            try
+            {
+                IsBusy = true;
+
+                var name = string.IsNullOrWhiteSpace(NomQuery) ? null : NomQuery.Trim();
+
+                // Si "Tout" (Id=0) => pas de filtre
+                int? siteId    = (SelectedSite != null && SelectedSite.Id    != 0) ? SelectedSite.Id    : null;
+                int? serviceId = (SelectedService != null && SelectedService.Id != 0) ? SelectedService.Id : null;
+
+                var list = await _data.SearchSalariesAsync(name, siteId, serviceId);
+
+                Results.Clear();
+                foreach (var r in list)
+                    Results.Add(r);
+            }
+            catch (Exception ex)
+            {
+                await _log.LogErrorAsync($"Recherche KO : {ex.Message}");
+            }
+            finally { IsBusy = false; }
+        }
+
+        private async Task ExportSelectedAsync()
+        {
+            if (SelectedSalarie == null) return;
+
+            try
+            {
+                await _pdf.ExportSalarieAsync(SelectedSalarie);
+                await _log.LogInfoAsync($"PDF exporté pour {SelectedSalarie.Prenom} {SelectedSalarie.Nom}");
+            }
+            catch (Exception ex)
+            {
+                await _log.LogErrorAsync($"Export PDF a échoué: {ex.Message}");
+            }
         }
     }
 }
