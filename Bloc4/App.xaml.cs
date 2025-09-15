@@ -1,8 +1,9 @@
 ﻿using System.Net.Http;
 using System.Windows;
 using Bloc4.Data;
-using Bloc4.Services;
+using Bloc4.Services;          // ✅ indispensable pour IAuthService, HashedAuthService, etc.
 using Bloc4.ViewModels;
+using Microsoft.EntityFrameworkCore;
 
 namespace Bloc4
 {
@@ -12,27 +13,31 @@ namespace Bloc4
         {
             base.OnStartup(e);
 
-            // --- Composition root (DI très simple) ---
             var db = new AppDbContext();
             await DbInitializer.EnsureCreatedAsync(db);
 
-            var logger = new FileLoggingService();
-            var auth   = new SimpleAuthService("admin"); // à changer pour la démo
-            var data   = new EfDataService(db);
-            var pdf    = new PdfService();
-            var http   = new HttpClient();
-            var random = new RandomUserService(db, http);
+            ILoggingService logger = new FileLoggingService();
 
-            // Seed rapide si BDD quasi vide (API RandomUser)
-            await random.ImportRandomUsersAsync(10, "fr");
+            // ✅ A majuscule dans IAuthService
+            const string ADMIN_HASH = "v1:200000:/b4kpYvjRQ1DZg9vuMtEmA==:Smzj8gRi+iArU9BoQPwchvBXMKdO7RmN3dBXKribdUc=";
+            IAuthService auth = new HashedAuthService(ADMIN_HASH);
 
-            // --- ViewModels ---
-            var searchVm = new SearchViewModel(data);
+            ILoginAuditService audit = new EfLoginAuditService(db, logger);
+
+            IDataService data = new EfDataService(db);
+            IPdfService  pdf  = new PdfService();
+            var http          = new HttpClient();
+            IRandomUserService random = new RandomUserService(db, http);
+
+            if (!await db.Salaries.AnyAsync())
+                await random.ImportRandomUsersAsync(10, "fr");
+
+            var searchVm = new SearchViewModel(data, pdf, logger);
             await searchVm.LoadListsAsync();
-            var adminVm  = new AdminViewModel(data, pdf);
-            var mainVm   = new MainViewModel(searchVm, adminVm, auth, logger);
 
-            // --- Window ---
+            var adminVm = new AdminViewModel(data, pdf);
+            var mainVm  = new MainViewModel(searchVm, adminVm, auth, logger, audit);
+
             var win = new MainWindow { DataContext = mainVm };
             win.Show();
         }
